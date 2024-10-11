@@ -1,7 +1,9 @@
 // <!--GAMFC-->version base on commit 841ed4e9ff121dde0ed6a56ae800c2e6c4f66056, time is 2024-04-16 18:02:37 UTC<!--GAMFC-END-->.
 // @ts-ignore
-//ahhhhhhhhh
+
 import { connect } from 'cloudflare:sockets';
+const secretKey = 'my-very-secure-secret-key-123456';
+const secretIV = '1234567890123456';
 let proxyIP;
 let proxyPort;
 export default {
@@ -13,13 +15,15 @@ export default {
       if (!upgradeHeader || upgradeHeader !== 'websocket') {
         return fetch(request);
       } else {
-    	if (url.pathname.includes('/vl=')) {
-		proxyIP = url.pathname.split('=')[1].split(':')[0];
-        proxyPort = url.pathname.includes(':') ? url.pathname.split(':')[1] : '443';
-		return await vlessOverWSHandler(request);
+        if (url.pathname.includes('/vl=')) {
+        const data = await decrypt(url.pathname.split('=')[1]);
+        const proxyIP = data.split(':')[0];
+        const proxyPort = data.includes(':') ? data.split(':')[1] : '443';
+        return await vlessOverWSHandler(request);
 	  } else if (url.pathname.includes('/tr=')) {
-		proxyIP = url.pathname.split('=')[1].split(':')[0];
-        proxyPort = url.pathname.includes(':') ? url.pathname.split(':')[1] : '443';
+		const data = await decrypt(url.pathname.split('=')[1]);
+        const proxyIP = data.split(':')[0];
+        const proxyPort = data.includes(':') ? data.split(':')[1] : '443';
 		return await trojanOverWSHandler(request);
 	  } else {
 	    return await vlessOverWSHandler(request);
@@ -684,4 +688,61 @@ function safeCloseWebSocket2(socket) {
   } catch (error) {
     console.error("safeCloseWebSocket2 error", error);
   }
+}
+
+function strToArrayBuffer(str) {
+    return new TextEncoder().encode(str);
+}
+
+function arrayBufferToStr(buf) {
+    return new TextDecoder().decode(buf);
+}
+
+function base64UrlEncode(buffer) {
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+}
+
+function base64UrlDecode(base64Url) {
+    const base64 = base64Url
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+        .padEnd(base64Url.length + (4 - (base64Url.length % 4)) % 4, '=');
+    return new Uint8Array(atob(base64).split("").map(char => char.charCodeAt(0)));
+}
+
+async function getKey(secretKey) {
+    return crypto.subtle.importKey(
+        "raw",
+        strToArrayBuffer(secretKey),
+        { name: "AES-CBC" },
+        false,
+        ["encrypt", "decrypt"]
+    );
+}
+
+async function encrypt(plainText) {
+    const iv = strToArrayBuffer(secretIV);
+    const key = await getKey(secretKey);
+    const encryptedContent = await crypto.subtle.encrypt(
+        { name: "AES-CBC", iv },
+        key,
+        strToArrayBuffer(plainText)
+    );
+    return base64UrlEncode(iv) + '.' + base64UrlEncode(encryptedContent);
+}
+
+async function decrypt(encryptedText) {
+    const [ivBase64Url, encryptedBase64Url] = encryptedText.split('.');
+    const iv = strToArrayBuffer(secretIV);
+    const encryptedContent = base64UrlDecode(encryptedBase64Url);   
+    const key = await getKey(secretKey);  
+    const decryptedContent = await crypto.subtle.decrypt(
+        { name: "AES-CBC", iv },
+        key,
+        encryptedContent
+    );
+    return arrayBufferToStr(decryptedContent);
 }
