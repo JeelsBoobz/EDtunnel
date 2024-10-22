@@ -24,7 +24,6 @@ function isValidIP(ip) {
 let data;
 let proxyIP;
 let proxyPort;
-const DEFAULT_PROXY_IP = '138.2.94.123';
 export default {
     async fetch(request, ctx) {
         try {
@@ -38,7 +37,7 @@ export default {
                 data = base64UrlDecode(url.pathname.split('=')[1]);
                 proxyIP = data.split(':')[0];
                 if (!isValidIP(proxyIP)) {
-                    proxyIP = DEFAULT_PROXY_IP;
+                    return new Response(`Error: Invalid Proxy`, { status: 500 });
                 }
                 proxyPort = data.includes(':') ? data.split(':')[1] : '443';
                 return await vlessOverWSHandler(request);
@@ -46,7 +45,7 @@ export default {
                 data = base64UrlDecode(url.pathname.split('=')[1]);
                 proxyIP = data.split(':')[0];
                 if (!isValidIP(proxyIP)) {
-                    proxyIP = DEFAULT_PROXY_IP;
+                    return new Response(`Error: Invalid Proxy`, { status: 500 });
                 }
                 proxyPort = data.includes(':') ? data.split(':')[1] : '443';
                 return await trojanOverWSHandler(request);
@@ -129,13 +128,13 @@ async function vlessOverWSHandler(request) {
             handleTCPOutBound(remoteSocketWapper, addressRemote, portRemote, rawClientData, webSocket, vlessResponseHeader, log);
         },
         close() {
-            log(`readableWebSocketStream is close`);
+            console.log(`readableWebSocketStream is close`);
         },
         abort(reason) {
-            log(`readableWebSocketStream is abort`, JSON.stringify(reason));
+            console.log(`readableWebSocketStream is abort`, JSON.stringify(reason));
         },
     })).catch((err) => {
-        log('readableWebSocketStream pipeTo error', err);
+        console.log('readableWebSocketStream pipeTo error', err);
     });
 
     return new Response(null, {
@@ -151,7 +150,7 @@ async function handleTCPOutBound(remoteSocket, addressRemote, portRemote, rawCli
             port: port,
         });
         remoteSocket.value = tcpSocket;
-        log(`connected to ${address}:${port}`);
+        console.log(`connected to ${address}:${port}`);
         const writer = tcpSocket.writable.getWriter();
         await writer.write(rawClientData);
         writer.releaseLock();
@@ -193,7 +192,7 @@ function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
             }
             );
             webSocketServer.addEventListener('error', (err) => {
-                log('webSocketServer has error');
+                console.log('webSocketServer has error');
                 controller.error(err);
             }
             );
@@ -211,7 +210,7 @@ function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
             if (readableStreamCancel) {
                 return;
             }
-            log(`ReadableStream was canceled, due to ${reason}`)
+            console.log(`ReadableStream was canceled, due to ${reason}`)
             readableStreamCancel = true;
             safeCloseWebSocket(webSocketServer);
         }
@@ -342,7 +341,7 @@ async function remoteSocketToWS(remoteSocket, webSocket, vlessResponseHeader, re
                     }
                 },
                 close() {
-                    log(`remoteConnection!.readable is close with hasIncomingData is ${hasIncomingData}`);
+                    console.log(`remoteConnection!.readable is close with hasIncomingData is ${hasIncomingData}`);
                 },
                 abort(reason) {
                     console.error(`remoteConnection!.readable abort`, reason);
@@ -357,7 +356,7 @@ async function remoteSocketToWS(remoteSocket, webSocket, vlessResponseHeader, re
             safeCloseWebSocket(webSocket);
         });
     if (hasIncomingData === false && retry) {
-        log(`retry`)
+        console.log(`retry`)
         retry();
     }
 }
@@ -424,7 +423,7 @@ async function handleUDPOutBound(webSocket, vlessResponseHeader, log) {
             const udpSize = dnsQueryResult.byteLength;
             const udpSizeBuffer = new Uint8Array([(udpSize >> 8) & 0xff, udpSize & 0xff]);
             if (webSocket.readyState === WS_READY_STATE_OPEN) {
-                log(`doh success and dns message length is ${udpSize}`);
+                console.log(`doh success and dns message length is ${udpSize}`);
                 if (isVlessHeaderSent) {
                     webSocket.send(await new Blob([udpSizeBuffer, dnsQueryResult]).arrayBuffer());
                 } else {
@@ -434,7 +433,7 @@ async function handleUDPOutBound(webSocket, vlessResponseHeader, log) {
             }
         }
     })).catch((error) => {
-        log('dns udp has error' + error)
+        console.log('dns udp has error' + error)
     });
 
     const writer = transformStream.writable.getWriter();
@@ -490,15 +489,15 @@ async function trojanOverWSHandler(request) {
                     handleTCPOutBound2(remoteSocketWapper, addressRemote, portRemote, rawClientData, webSocket, log);
                 },
                 close() {
-                    log(`readableWebSocketStream is closed`);
+                    console.log(`readableWebSocketStream is closed`);
                 },
                 abort(reason) {
-                    log(`readableWebSocketStream is aborted`, JSON.stringify(reason));
+                    console.log(`readableWebSocketStream is aborted`, JSON.stringify(reason));
                 },
             })
         )
         .catch((err) => {
-            log("readableWebSocketStream pipeTo error", err);
+            console.log("readableWebSocketStream pipeTo error", err);
         });
     return new Response(null, {
         status: 101,
@@ -593,7 +592,7 @@ async function handleTCPOutBound2(remoteSocket, addressRemote, portRemote, rawCl
             port,
         });
         remoteSocket.value = tcpSocket2;
-        log(`connected to ${address}:${port}`);
+        console.log(`connected to ${address}:${port}`);
         const writer = tcpSocket2.writable.getWriter();
         await writer.write(rawClientData);
         writer.releaseLock();
@@ -633,7 +632,7 @@ function makeReadableWebSocketStream2(webSocketServer, earlyDataHeader, log) {
                 controller.close();
             });
             webSocketServer.addEventListener("error", (err) => {
-                log("webSocketServer error");
+                console.log("webSocketServer error");
                 controller.error(err);
             });
             const { earlyData, error } = base64ToArrayBuffer2(earlyDataHeader);
@@ -648,7 +647,7 @@ function makeReadableWebSocketStream2(webSocketServer, earlyDataHeader, log) {
             if (readableStreamCancel) {
                 return;
             }
-            log(`readableStream was canceled, due to ${reason}`);
+            console.log(`readableStream was canceled, due to ${reason}`);
             readableStreamCancel = true;
             safeCloseWebSocket2(webSocketServer);
         },
@@ -670,7 +669,7 @@ async function remoteSocketToWS2(remoteSocket, webSocket, retry, log) {
                     webSocket.send(chunk);
                 },
                 close() {
-                    log(`remoteSocket.readable is closed, hasIncomingData: ${hasIncomingData}`);
+                    console.log(`remoteSocket.readable is closed, hasIncomingData: ${hasIncomingData}`);
                 },
                 abort(reason) {
                     console.error("remoteSocket.readable abort", reason);
@@ -682,7 +681,7 @@ async function remoteSocketToWS2(remoteSocket, webSocket, retry, log) {
             safeCloseWebSocket2(webSocket);
         });
     if (hasIncomingData === false && retry) {
-        log(`retry`);
+        console.log(`retry`);
         retry();
     }
 }
