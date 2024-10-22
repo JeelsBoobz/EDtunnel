@@ -16,9 +16,15 @@ function base64UrlDecode(encodedStr) {
     return atob(base64);
 }
 
+function isValidIP(ip) {
+    const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    return ipRegex.test(ip);
+}
+
 let data;
 let proxyIP;
 let proxyPort;
+const DEFAULT_PROXY_IP = '138.2.94.123';
 export default {
     async fetch(request, ctx) {
         try {
@@ -31,11 +37,17 @@ export default {
             if (url.pathname.includes('/vl=')) {
                 data = base64UrlDecode(url.pathname.split('=')[1]);
                 proxyIP = data.split(':')[0];
+                if (!isValidIP(proxyIP)) {
+                    proxyIP = DEFAULT_PROXY_IP;
+                }
                 proxyPort = data.includes(':') ? data.split(':')[1] : '443';
                 return await vlessOverWSHandler(request);
             } else if (url.pathname.includes('/tr=')) {
                 data = base64UrlDecode(url.pathname.split('=')[1]);
                 proxyIP = data.split(':')[0];
+                if (!isValidIP(proxyIP)) {
+                    proxyIP = DEFAULT_PROXY_IP;
+                }
                 proxyPort = data.includes(':') ? data.split(':')[1] : '443';
                 return await trojanOverWSHandler(request);
             } else {
