@@ -1,6 +1,3 @@
-// <!--GAMFC-->version base on commit 841ed4e9ff121dde0ed6a56ae800c2e6c4f66056, time is 2024-04-16 18:02:37 UTC<!--GAMFC-END-->.
-// @ts-ignore
-
 import { connect } from 'cloudflare:sockets';
 
 function base64UrlEncode(str) {
@@ -21,6 +18,8 @@ function isValidIP(ip) {
     return ipRegex.test(ip);
 }
 
+
+let HomePage = 'https://proxy-list.cloudaccess.host/';
 let data;
 let proxyIP;
 let proxyPort;
@@ -31,28 +30,28 @@ export default {
             const upgradeHeader = request.headers.get('Upgrade');
             const url = new URL(request.url);
             if (!upgradeHeader || upgradeHeader !== 'websocket') {
-                return fetch(request);
+                return Response.redirect(HomePage, 302);
             } else {
-            if (url.pathname.includes('/vl=')) {
-                data = base64UrlDecode(url.pathname.split('=')[1]);
-                proxyIP = data.split(':')[0];
-                if (!isValidIP(proxyIP)) {
-                    return new Response(`Error: Invalid Proxy`, { status: 500 });
+                if (url.pathname.includes('/vl=')) {
+                    data = base64UrlDecode(url.pathname.split('=')[1]);
+                    proxyIP = data.split(':')[0];
+                    if (!isValidIP(proxyIP)) {
+                        return new Response(`Error: Invalid Proxy`, { status: 500 });
+                    }
+                    proxyPort = data.includes(':') ? data.split(':')[1] : '443';
+                    return await vlessOverWSHandler(request);
+                } else if (url.pathname.includes('/tr=')) {
+                    data = base64UrlDecode(url.pathname.split('=')[1]);
+                    proxyIP = data.split(':')[0];
+                    if (!isValidIP(proxyIP)) {
+                        return new Response(`Error: Invalid Proxy`, { status: 500 });
+                    }
+                    proxyPort = data.includes(':') ? data.split(':')[1] : '443';
+                    return await trojanOverWSHandler(request);
+                } else {
+                    return new Response(`Error: Invalid Path`, { status: 500 });
                 }
-                proxyPort = data.includes(':') ? data.split(':')[1] : '443';
-                return await vlessOverWSHandler(request);
-            } else if (url.pathname.includes('/tr=')) {
-                data = base64UrlDecode(url.pathname.split('=')[1]);
-                proxyIP = data.split(':')[0];
-                if (!isValidIP(proxyIP)) {
-                    return new Response(`Error: Invalid Proxy`, { status: 500 });
-                }
-                proxyPort = data.includes(':') ? data.split(':')[1] : '443';
-                return await trojanOverWSHandler(request);
-            } else {
-                return await vlessOverWSHandler(request);
             }
-        }
         } catch (err) {
             return new Response(`Error: ${err.message}`, { status: 500 });
         }
