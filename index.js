@@ -1,28 +1,10 @@
 import { connect } from 'cloudflare:sockets';
 
-function base64UrlEncode(str) {
-    let base64 = btoa(str);
-    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function base64UrlDecode(encodedStr) {
-    let base64 = encodedStr.replace(/-/g, '+').replace(/_/g, '/');
-    while (base64.length % 4) {
-        base64 += '=';
-    }
-    return atob(base64);
-}
-
-function isValidIP(ip) {
-    const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-    return ipRegex.test(ip);
-}
-
-
-let HomePage = 'https://proxy-list.cloudaccess.host/';
+let BaseURL = 'https://proxy-list.cloudaccess.host';
 let data;
 let proxyIP;
 let proxyPort;
+let countryCode;
 export default {
     async fetch(request, ctx) {
         try {
@@ -30,23 +12,49 @@ export default {
             const upgradeHeader = request.headers.get('Upgrade');
             const url = new URL(request.url);
             if (!upgradeHeader || upgradeHeader !== 'websocket') {
-                return Response.redirect(HomePage, 302);
+                return Response.redirect(BaseURL, 302);
             } else {
-                if (url.pathname.includes('/vl=')) {
-                    data = base64UrlDecode(url.pathname.split('=')[1]);
-                    proxyIP = data.split(':')[0];
-                    if (!isValidIP(proxyIP)) {
-                        return new Response(`Error: Invalid Proxy`, { status: 500 });
+                if (url.pathname.startsWith('/vless/cc=') || url.pathname.startsWith('/vless/cc/')) {
+                    countryCode = url.pathname.split('/')[3] || url.pathname.split('=')[1];
+                    data = await getProxyByCountry(countryCode);
+                    if (data) {
+                        proxyIP = data.split(':')[0];
+                        proxyPort = data.includes(':') ? data.split(':')[1] : '443';
+                        if (!isValidIP(proxyIP)) {
+                            return new Response(`Error: Invalid Proxy IP`, { status: 500 });
+                        }
+                        return await vlessOverWSHandler(request);
+                    } else {
+                        return new Response(`Error: Proxy not found for ${countryCode}`, { status: 500 });
                     }
+                } else if (url.pathname.startsWith('/trojan/cc=') || url.pathname.startsWith('/trojan/cc/')) {
+                    countryCode = url.pathname.split('/')[3] || url.pathname.split('=')[1];
+                    data = await getProxyByCountry(countryCode);
+                    if (data) {
+                        proxyIP = data.split(':')[0];
+                        proxyPort = data.includes(':') ? data.split(':')[1] : '443';
+                        if (!isValidIP(proxyIP)) {
+                            return new Response(`Error: Invalid Proxy IP`, { status: 500 });
+                        }
+                        return await trojanOverWSHandler(request);
+                    } else {
+                        return new Response(`Error: Proxy not found for ${countryCode}`, { status: 500 });
+                    }
+                } else if (url.pathname.startsWith('/vl=') || url.pathname.startsWith('/vless/')) {
+                    data = base64UrlDecode(url.pathname.split('/')[2] || url.pathname.split('=')[1]);
+                    proxyIP = data.split(':')[0];
                     proxyPort = data.includes(':') ? data.split(':')[1] : '443';
+                    if (!isValidIP(proxyIP)) {
+                        return new Response(`Error: Invalid Proxy IP`, { status: 500 });
+                    }
                     return await vlessOverWSHandler(request);
-                } else if (url.pathname.includes('/tr=')) {
-                    data = base64UrlDecode(url.pathname.split('=')[1]);
+                } else if (url.pathname.startsWith('/tr=') || url.pathname.startsWith('/trojan/')) {
+                    data = base64UrlDecode(url.pathname.split('/')[2] || url.pathname.split('=')[1]);
                     proxyIP = data.split(':')[0];
-                    if (!isValidIP(proxyIP)) {
-                        return new Response(`Error: Invalid Proxy`, { status: 500 });
-                    }
                     proxyPort = data.includes(':') ? data.split(':')[1] : '443';
+                    if (!isValidIP(proxyIP)) {
+                        return new Response(`Error: Invalid Proxy IP`, { status: 500 });
+                    }
                     return await trojanOverWSHandler(request);
                 } else {
                     return new Response(`Error: Invalid Path`, { status: 500 });
@@ -58,6 +66,7 @@ export default {
     },
 };
 
+// VLess
 async function vlessOverWSHandler(request) {
     const webSocketPair = new WebSocketPair();
     const [client, webSocket] = Object.values(webSocketPair);
@@ -444,6 +453,8 @@ async function handleUDPOutBound(webSocket, vlessResponseHeader, log) {
     };
 }
 
+
+// Trojan
 async function trojanOverWSHandler(request) {
     const webSocketPair = new WebSocketPair();
     const [client, webSocket] = Object.values(webSocketPair);
@@ -709,5 +720,39 @@ function safeCloseWebSocket2(socket) {
         }
     } catch (error) {
         console.error("safeCloseWebSocket2 error", error);
+    }
+}
+
+function base64UrlEncode(str) {
+    let base64 = btoa(str);
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64UrlDecode(encodedStr) {
+    let base64 = encodedStr.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+        base64 += '=';
+    }
+    return atob(base64);
+}
+
+function isValidIP(ip) {
+    const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    return ipRegex.test(ip);
+}
+
+async function getProxyByCountry(countryCode) {
+    const url = BaseURL + '/random-proxy.json';
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error('Failed to fetch proxy list');
+        }
+        const data = await response.json();
+        const entry = data.find(item => item.country.toLowerCase() === countryCode.toLowerCase());
+        return entry ? entry.proxy : null;
+    } catch (error) {
+        console.error('Error fetching proxy:', error);
+        return null;
     }
 }
