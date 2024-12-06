@@ -1,14 +1,13 @@
 import { connect } from 'cloudflare:sockets';
 
-let BaseURL = 'https://proxy-list.cloudaccess.host';
 let data;
 let proxyIP;
 let proxyPort;
 let countryCode;
 export default {
-    async fetch(request, ctx) {
+    async fetch(request, env, ctx) {
         try {
-            proxyIP = proxyIP;
+            const BaseURL = env.BaseURL || 'https://proxy-list.jeelsboobz.co-id.id';
             const upgradeHeader = request.headers.get('Upgrade');
             const url = new URL(request.url);
             if (!upgradeHeader || upgradeHeader !== 'websocket') {
@@ -16,7 +15,7 @@ export default {
             } else {
                 if (url.pathname.startsWith('/vless/cc=') || url.pathname.startsWith('/vless/cc/')) {
                     countryCode = url.pathname.split('/')[3] || url.pathname.split('=')[1];
-                    data = await getProxyByCountry(countryCode);
+                    data = await getProxyByCountry(countryCode, BaseURL);
                     if (data) {
                         proxyIP = data.split(':')[0];
                         proxyPort = data.includes(':') ? data.split(':')[1] : '443';
@@ -29,7 +28,7 @@ export default {
                     }
                 } else if (url.pathname.startsWith('/trojan/cc=') || url.pathname.startsWith('/trojan/cc/')) {
                     countryCode = url.pathname.split('/')[3] || url.pathname.split('=')[1];
-                    data = await getProxyByCountry(countryCode);
+                    data = await getProxyByCountry(countryCode, BaseURL);
                     if (data) {
                         proxyIP = data.split(':')[0];
                         proxyPort = data.includes(':') ? data.split(':')[1] : '443';
@@ -741,7 +740,7 @@ function isValidIP(ip) {
     return ipRegex.test(ip);
 }
 
-async function getProxyByCountry(countryCode) {
+async function getProxyByCountry(countryCode, BaseURL) {
     const url = BaseURL + '/random-proxy.json';
     try {
         const response = await fetch(url);
@@ -754,5 +753,3 @@ async function getProxyByCountry(countryCode) {
     } catch (error) {
         console.error('Error fetching proxy:', error);
         return null;
-    }
-}
