@@ -749,7 +749,9 @@ async function getProxyByCountry(countryCode, BaseURL) {
         }
         const data = await response.json();
         const entry = data.find(item => item.country.toLowerCase() === countryCode.toLowerCase());
-        return entry ? entry.proxy : null;
+        return entry ? entry.proxy : '';
     } catch (error) {
         console.error('Error fetching proxy:', error);
-        return null;
+        return ''
+    }
+}
